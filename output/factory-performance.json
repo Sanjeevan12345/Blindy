@@ -1,0 +1,16 @@
+[
+  {
+    "average_fps": 141.641944901283,
+    "average_ms": 7.06005555555556,
+    "draw_calls": 614.0,
+    "quality": "high",
+    "resolution": "1920x1080"
+  },
+  {
+    "average_fps": 137.858777468361,
+    "average_ms": 7.2538,
+    "draw_calls": 614.0,
+    "quality": "reduced",
+    "resolution": "1920x1080"
+  }
+]

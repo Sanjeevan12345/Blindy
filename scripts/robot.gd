@@ -11,6 +11,7 @@ const START := Vector3(0,1.2,5)
 @export var braking := 4.5
 @export var grip := 0.95
 @export var jump_height := 1.4
+@export var kill_height := -6.0
 @export var balance_strength := 1500.0
 @export var balance_damping := 500.0
 @export var balance_torque_limit := 700.0
@@ -32,6 +33,7 @@ var checkpoint_position := START
 var checkpoint_heading := 0.0
 var grounded := false
 var ground_normal := Vector3.UP
+var ground_velocity := Vector3.ZERO
 var jump_buffer := 0.0
 var coyote := 0.0
 var jump_used := false
@@ -124,6 +126,7 @@ func set_simulation(enabled: bool, replica: bool=false) -> void:
 
 func probe_ground(state: PhysicsDirectBodyState3D) -> bool:
 	ground_normal=Vector3.UP
+	ground_velocity=Vector3.ZERO
 	# Tire-relative rays, not head/body contacts. Wall touches never enable jumps.
 	for x in [-0.18,0.0,0.18]:
 		var origin := state.transform*Vector3(x,0.65,0)
@@ -133,6 +136,13 @@ func probe_ground(state: PhysicsDirectBodyState3D) -> bool:
 		var hit := state.get_space_state().intersect_ray(query)
 		if not hit.is_empty() and hit.normal.dot(Vector3.UP)>0.6:
 			ground_normal=hit.normal
+			var surface=hit.collider
+			for i in range(3):
+				if surface==null: break
+				if surface.has_meta("surface_velocity"):
+					ground_velocity=surface.get_meta("surface_velocity")
+					break
+				surface=surface.get_parent()
 			return true
 	return false
 
@@ -160,7 +170,7 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 			fell.emit()
 		return
 	tip_time=tip_time+dt if tilt>55 else 0.0
-	if tip_time>=1.0 or state.transform.origin.y< -6:
+	if tip_time>=1.0 or state.transform.origin.y<kill_height:
 		recovering=true
 		recovery_time=0.4
 		drive_input=Vector2.ZERO
@@ -186,8 +196,9 @@ func _integrate_forces(state: PhysicsDirectBodyState3D) -> void:
 		grounded=false
 	var f := Vector3(-state.transform.basis.z.x,0,-state.transform.basis.z.z).normalized()
 	var right := f.cross(Vector3.UP)
-	var speed := state.linear_velocity.dot(f)
-	var lateral := state.linear_velocity.dot(right)
+	var relative_velocity := state.linear_velocity-ground_velocity
+	var speed := relative_velocity.dot(f)
+	var lateral := relative_velocity.dot(right)
 	if grounded and tilt<55:
 		var throttle := -clampf(drive_input.y,-1,1)
 		var steer := clampf(drive_input.x,-1,1)

@@ -5,14 +5,24 @@ var palette: Dictionary = {}
 var environment: Environment
 var lamps: Array[Light3D] = []
 var quality_high := true
+var surface_materials: Array[ShaderMaterial] = []
+var fog_volumes: Array[FogVolume] = []
 
 func surface(color: String, metal: float=0.7, rust: float=0.25, grid: float=0.0) -> Material:
 	var m := ShaderMaterial.new()
 	m.shader = preload("res://materials/factory_surface.gdshader")
-	m.set_shader_parameter("tint",Color(color))
-	m.set_shader_parameter("metalness",metal)
-	m.set_shader_parameter("rust_amount",rust)
+	var style := preload("res://scripts/art_profile.gd").material_style(color,metal,rust,grid)
+	m.set_shader_parameter("tint",Color(style.tint))
+	m.set_shader_parameter("metalness",style.metal)
+	m.set_shader_parameter("rust_amount",style.rust)
 	m.set_shader_parameter("plate_grid",grid)
+	m.set_shader_parameter("material_family",style.family)
+	m.set_shader_parameter("maximum_quality",quality_high)
+	var base_name: String=["painted_metal","bare_steel","concrete"][style.family]
+	var bindings := {"base_map":base_name,"grime_map":"grime","wear_map":"wear","roughness_map":"surface_roughness","detail_normal":"concrete_normal" if style.family==2 else "metal_normal"}
+	for binding in bindings:
+		m.set_shader_parameter(binding,load("res://materials/textures/"+bindings[binding]+".res"))
+	surface_materials.append(m)
 	return m
 
 func emissive(color: String, energy: float=2) -> StandardMaterial3D:
@@ -20,11 +30,16 @@ func emissive(color: String, energy: float=2) -> StandardMaterial3D:
 	m.albedo_color=Color(color)
 	m.emission_enabled=true
 	m.emission=Color(color)
-	m.emission_energy_multiplier=energy
+	m.emission_energy_multiplier=minf(energy,1.8)
 	return m
 
 func _ready() -> void:
 	palette={"steel":surface("374d56"),"blue":surface("326271",0.65,0.45),"rust":surface("825032",0.65,0.7),"black":surface("202a30"),"paint":surface("a77b3d"),"floor":surface("43535a",0.7,0.3,1),"yellow":surface("bc914b"),"soil":surface("303329",0,0.7),"leaf":surface("506e36",0,0),"amber":emissive("ffb64c",3.5),"cyan":emissive("54bbc9",1.5)}
+	var leaf := StandardMaterial3D.new()
+	leaf.albedo_color=Color("547c39")
+	leaf.roughness=0.8
+	leaf.cull_mode=BaseMaterial3D.CULL_DISABLED
+	palette["leaf"]=leaf
 	setup_lighting()
 	build_shell()
 	build_route_details()
@@ -35,7 +50,7 @@ func box(at: Vector3, size: Vector3, key: String, rotation: Vector3=Vector3.ZERO
 	var batch_key := key+"_box"
 	if batch_key not in batches:
 		batches[batch_key]={"mesh":BoxMesh.new(),"material":palette[key],"transforms":[]}
-	batches[batch_key].transforms.append(Transform3D(Basis.from_euler(rotation).scaled(size),at))
+	batches[batch_key].transforms.append(Transform3D((Basis.from_euler(rotation)*Basis.from_scale(size)),at))
 
 func rod(a: Vector3,b: Vector3,radius: float,key: String="steel") -> void:
 	var batch_key := key+"_rod"
@@ -52,7 +67,7 @@ func rod(a: Vector3,b: Vector3,radius: float,key: String="steel") -> void:
 		basis=Basis(Vector3.RIGHT,PI)
 	elif direction.dot(Vector3.UP)<0.999:
 		basis=Basis(Quaternion(Vector3.UP,direction))
-	batches[batch_key].transforms.append(Transform3D(basis.scaled(Vector3(radius*2,a.distance_to(b),radius*2)),(a+b)*0.5))
+	batches[batch_key].transforms.append(Transform3D((basis*Basis.from_scale(Vector3(radius*2,a.distance_to(b),radius*2))),(a+b)*0.5))
 
 func pipe_elbow(center: Vector3,radius: float,tube: float,start: float,end: float) -> void:
 	for i in range(12):
@@ -62,71 +77,32 @@ func pipe_elbow(center: Vector3,radius: float,tube: float,start: float,end: floa
 
 func flush() -> void:
 	for data in batches.values():
-		var mm := MultiMesh.new()
-		mm.transform_format=MultiMesh.TRANSFORM_3D
-		mm.mesh=data.mesh
-		mm.instance_count=data.transforms.size()
-		for i in range(mm.instance_count):
-			mm.set_instance_transform(i,data.transforms[i])
-		var node := MultiMeshInstance3D.new()
-		node.multimesh=mm
-		node.material_override=data.material
-		add_child(node)
+		var chunks: Dictionary={}
+		for transform in data.transforms:
+			var cell := Vector2i(floori(transform.origin.x/24),floori(transform.origin.z/24))
+			if cell not in chunks: chunks[cell]=[]
+			chunks[cell].append(transform)
+		for cell in chunks:
+			var origin := Vector3(cell.x*24,0,cell.y*24)
+			var mm := MultiMesh.new()
+			mm.transform_format=MultiMesh.TRANSFORM_3D
+			mm.mesh=data.mesh
+			mm.instance_count=chunks[cell].size()
+			for i in range(mm.instance_count):
+				var transform: Transform3D=chunks[cell][i]
+				transform.origin-=origin
+				mm.set_instance_transform(i,transform)
+			var node := MultiMeshInstance3D.new()
+			node.multimesh=mm
+			node.material_override=data.material
+			node.position=origin
+			add_child(node)
 	batches.clear()
 
+func art_level() -> int: return 1
+
 func setup_lighting() -> void:
-	var world := WorldEnvironment.new()
-	environment=Environment.new()
-	world.environment=environment
-	environment.background_mode=Environment.BG_COLOR
-	environment.background_color=Color("102a38")
-	environment.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color=Color("759fae")
-	environment.ambient_light_energy=0.45
-	environment.tonemap_mode=Environment.TONE_MAPPER_FILMIC
-	environment.glow_enabled=true
-	environment.glow_intensity=0.5
-	environment.ssao_enabled=true
-	environment.ssao_intensity=1.1
-	environment.volumetric_fog_enabled=true
-	environment.volumetric_fog_density=0.009
-	environment.volumetric_fog_albedo=Color("7397a3")
-	environment.volumetric_fog_emission=Color("122734")
-	environment.volumetric_fog_emission_energy=0.12
-	environment.volumetric_fog_length=80
-	add_child(world)
-	var sky_light := DirectionalLight3D.new()
-	sky_light.rotation_degrees=Vector3(-60,-30,0)
-	sky_light.light_color=Color("7faec4")
-	sky_light.light_energy=0.65
-	sky_light.shadow_enabled=true
-	add_child(sky_light)
-	# Window shafts pull cool light through the upper levels.
-	for z in range(-140,8,24):
-		var light := SpotLight3D.new()
-		light.position=Vector3(-11,15,z)
-		light.rotation_degrees=Vector3(-60,-55,0)
-		light.light_color=Color("80b9d0")
-		light.light_energy=9
-		light.spot_range=35
-		light.spot_angle=38
-		light.light_volumetric_fog_energy=2
-		add_child(light)
-		lamps.append(light)
-	for z in range(-140,8,24):
-		box(Vector3(-17.4,13,z),Vector3(0.08,7,4),"cyan")
-		for offset in [-1.3,0,1.3]:
-			box(Vector3(-17.2,13,z+offset),Vector3(0.2,7,0.12),"steel")
-		var warm := SpotLight3D.new()
-		warm.position=Vector3(-8,5,z+7)
-		warm.light_color=Color("ffc17d")
-		warm.light_energy=7
-		warm.spot_range=18
-		warm.spot_angle=58
-		warm.light_volumetric_fog_energy=1.5
-		add_child(warm)
-		warm.look_at(Vector3(0,0,z+4))
-		lamps.append(warm)
+	preload("res://scripts/art_profile.gd").lighting(self,art_level())
 
 func lamp(at: Vector3, shadow: bool=false) -> void:
 	box(at,Vector3(1.0,0.18,0.65),"black")
@@ -139,6 +115,7 @@ func lamp(at: Vector3, shadow: bool=false) -> void:
 	light.omni_range=10
 	light.omni_attenuation=1.4
 	light.shadow_enabled=shadow
+	light.set_meta("important_shadow",shadow)
 	light.light_volumetric_fog_energy=1.2
 	add_child(light)
 	lamps.append(light)
@@ -227,6 +204,8 @@ func build_route_details() -> void:
 	box(Vector3(3,3,-151),Vector3(5.5,6,0.3),"steel")
 
 func build_greenhouse() -> void:
+	var foliage := preload("res://scripts/cinematic_kit.gd").new()
+	foliage.art=self
 	for x in [-5.5,5.5]:
 		for z in [-105,-110,-115,-120]:
 			box(Vector3(x,2.5,z),Vector3(0.16,5,0.16),"steel")
@@ -239,8 +218,8 @@ func build_greenhouse() -> void:
 			for i in range(3):
 				var at := Vector3(side*4.6+(i-1)*0.25,0.8,z)
 				rod(at,at+Vector3(0,0.65,0),0.025,"leaf")
-				box(at+Vector3(0.12,0.4,0),Vector3(0.35,0.06,0.16),"leaf",Vector3(0,0,0.5))
-				box(at+Vector3(-0.12,0.55,0),Vector3(0.32,0.06,0.16),"leaf",Vector3(0,0,-0.5))
+				foliage.leaf(at+Vector3(0.12,0.4,0),Vector3(0.42,0.42,0.7),Vector3(0,0,0.5))
+				foliage.leaf(at+Vector3(-0.12,0.55,0),Vector3(0.42,0.42,0.7),Vector3(0,0,-0.5))
 	var green_light := OmniLight3D.new()
 	green_light.position=Vector3(0,3,-113)
 	green_light.light_color=Color("c6de9a")
@@ -251,7 +230,9 @@ func build_greenhouse() -> void:
 func set_quality(high: bool) -> void:
 	quality_high=high
 	environment.volumetric_fog_enabled=high
+	environment.fog_enabled=not high
 	environment.ssao_enabled=high
+	for volume in fog_volumes: volume.visible=high
+	for material in surface_materials: material.set_shader_parameter("maximum_quality",high)
 	for light in lamps:
-		if light is OmniLight3D:
-			light.shadow_enabled=high and light.position.z in [-148.0,-98.0,-48.0,2.0,-149.0]
+		light.shadow_enabled=high and bool(light.get_meta("important_shadow",false))

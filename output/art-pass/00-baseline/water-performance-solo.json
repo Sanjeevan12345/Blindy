@@ -1,0 +1,62 @@
+[
+  {
+    "explicit_draws_per_frame": 1,
+    "frames": 343,
+    "mean_frame_ms": 6.39738483965014,
+    "median_frame_ms": 6.386,
+    "median_gpu_ms": 6.10699987411499,
+    "mode": "solo",
+    "p95_frame_ms": 6.537,
+    "quality": "Maximum",
+    "resolution": "1920x1080",
+    "role": 0,
+    "view": "hub",
+    "vsync": false,
+    "water_visible": true
+  },
+  {
+    "explicit_draws_per_frame": 1,
+    "frames": 406,
+    "mean_frame_ms": 5.41887684729064,
+    "median_frame_ms": 5.401,
+    "median_gpu_ms": 5.09800004959106,
+    "mode": "solo",
+    "p95_frame_ms": 5.616,
+    "quality": "Maximum",
+    "resolution": "1920x1080",
+    "role": 0,
+    "view": "lock",
+    "vsync": false,
+    "water_visible": true
+  },
+  {
+    "explicit_draws_per_frame": 1,
+    "frames": 567,
+    "mean_frame_ms": 3.8754938271605,
+    "median_frame_ms": 3.869,
+    "median_gpu_ms": 3.56900000572205,
+    "mode": "solo",
+    "p95_frame_ms": 4.027,
+    "quality": "Reduced",
+    "resolution": "1920x1080",
+    "role": 0,
+    "view": "hub",
+    "vsync": false,
+    "water_visible": true
+  },
+  {
+    "explicit_draws_per_frame": 1,
+    "frames": 602,
+    "mean_frame_ms": 3.6527657807309,
+    "median_frame_ms": 3.648,
+    "median_gpu_ms": 3.36899995803833,
+    "mode": "solo",
+    "p95_frame_ms": 3.765,
+    "quality": "Reduced",
+    "resolution": "1920x1080",
+    "role": 0,
+    "view": "lock",
+    "vsync": false,
+    "water_visible": true
+  }
+]

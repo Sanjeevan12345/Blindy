@@ -28,7 +28,7 @@ func run() -> void:
 	var box = level.lobby.get_child(0)
 	var solo_button: Button
 	for child in box.get_children():
-		if child is Button and child.text.begins_with("Solo test"):
+		if child is Button and child.text.begins_with("Solo test — all controls"):
 			solo_button = child
 	solo_button.grab_focus()
 	solo_button.pressed.emit()

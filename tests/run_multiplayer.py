@@ -11,6 +11,13 @@ parser.add_argument("--port", type=int, default=28767)
 parser.add_argument("--graphical", action="store_true", help="Open three rendered game windows")
 parser.add_argument("--boot-only", action="store_true", help="Short graphical input/session check through Boot Bay")
 parser.add_argument("--finish-only", action="store_true", help="Short reliable completion and disconnect regression")
+parser.add_argument("--level", type=int, choices=[1,2,3], default=1)
+parser.add_argument("--route", choices=["short","service"], default="short")
+parser.add_argument("--resume-check", action="store_true")
+parser.add_argument("--saved-complete", action="store_true")
+parser.add_argument("--speed", type=float, default=1)
+parser.add_argument("--order", choices=["ab","ba"], default="ab")
+parser.add_argument("--transition", action="store_true", help="Verify Level 1 to Level 2 session handoff")
 args = parser.parse_args()
 project = Path(__file__).resolve().parents[1]
 logs = project / ".godot" / "multiplayer-check" / str(args.port)
@@ -23,13 +30,15 @@ try:
                         ("hands", ["--join=127.0.0.1"]),
                         ("wheel", ["--join=127.0.0.1"])]:
         output = (logs / (role + ".log")).open("w")
+        script = "res://tests/network_transition.gd" if args.transition else f"res://tests/network_level_{'three' if args.level==3 else ('two' if args.level==2 else 'one')}.gd"
+        if args.resume_check: script = "res://tests/network_waterworks_resume.gd"
         command = [args.godot, *([] if args.graphical else ["--headless"]), "--path", str(project), "--script",
-                   "res://tests/network_level_one.gd", "--", *flags, f"--port={args.port}", *(["--boot-only"] if args.boot_only else []), *(["--finish-only"] if args.finish_only else [])]
+                   script, "--", *flags, f"--port={args.port}", f"--route={args.route}", f"--order={args.order}", f"--speed={args.speed}", "--no-save", *(["--saved-complete"] if args.saved_complete else []), *(["--transition-three"] if args.transition and args.level==3 else []), *(["--boot-only"] if args.boot_only else []), *(["--finish-only"] if args.finish_only else [])]
         process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT,
                                    env=environment, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         processes.append((role, process, output))
         time.sleep(2)
-    deadline = time.monotonic() + 305
+    deadline = time.monotonic() + (1400 if args.level==3 else (465 if args.level==2 else 305))
     while any(process.poll() is None for _, process, _ in processes):
         if time.monotonic() > deadline:
             raise TimeoutError("Three-client level run timed out. Inspect " + str(logs))

@@ -1,0 +1,155 @@
+[
+  {
+    "camera": [
+      0.0,
+      3.29999995231628,
+      9.0
+    ],
+    "exposure": 1.0,
+    "fov": 72.0,
+    "level": 3,
+    "stage": 0,
+    "target": [
+      0.0,
+      2.0,
+      -35.0
+    ],
+    "view": "level-3-hub"
+  },
+  {
+    "camera": [
+      0.0,
+      3.20000004768372,
+      -7.0
+    ],
+    "exposure": 1.0,
+    "fov": 70.0,
+    "level": 3,
+    "stage": 0,
+    "target": [
+      0.0,
+      -1.0,
+      -45.0
+    ],
+    "view": "level-3-water-high"
+  },
+  {
+    "camera": [
+      34.0,
+      3.0,
+      -48.0
+    ],
+    "exposure": 1.0,
+    "fov": 70.0,
+    "level": 3,
+    "stage": 0,
+    "target": [
+      40.0,
+      2.0,
+      -56.0
+    ],
+    "view": "level-3-pump"
+  },
+  {
+    "camera": [
+      0.0,
+      3.29999995231628,
+      9.0
+    ],
+    "exposure": 1.0,
+    "fov": 72.0,
+    "level": 3,
+    "stage": 0,
+    "target": [
+      0.0,
+      2.0,
+      -35.0
+    ],
+    "view": "level-3-reduced"
+  },
+  {
+    "camera": [
+      -3.79999995231628,
+      3.0,
+      35.5
+    ],
+    "exposure": 1.0,
+    "fov": 50.0,
+    "level": 3,
+    "stage": 0,
+    "target": [
+      0.0,
+      1.80000007152557,
+      40.0
+    ],
+    "view": "robot-materials"
+  },
+  {
+    "camera": [
+      -22.0,
+      3.0,
+      9.0
+    ],
+    "exposure": 1.0,
+    "fov": 65.0,
+    "level": 2,
+    "stage": 5,
+    "target": [
+      -7.0,
+      1.0,
+      -15.0
+    ],
+    "view": "level-2-arrival"
+  },
+  {
+    "camera": [
+      22.0,
+      2.59999990463257,
+      -76.0
+    ],
+    "exposure": 1.0,
+    "fov": 65.0,
+    "level": 2,
+    "stage": 5,
+    "target": [
+      1.0,
+      1.79999995231628,
+      -78.0
+    ],
+    "view": "level-2-destination"
+  },
+  {
+    "camera": [
+      0.0,
+      2.79999995231628,
+      -106.0
+    ],
+    "exposure": 1.0,
+    "fov": 72.0,
+    "level": 1,
+    "stage": 5,
+    "target": [
+      -2.0,
+      2.0,
+      -116.0
+    ],
+    "view": "level-1-greenhouse"
+  },
+  {
+    "camera": [
+      0.0,
+      2.83999991416931,
+      5.0
+    ],
+    "exposure": 1.0,
+    "fov": 72.0,
+    "level": 1,
+    "stage": 5,
+    "target": [
+      0.0,
+      2.0,
+      -16.0
+    ],
+    "view": "level-1-boot"
+  }
+]

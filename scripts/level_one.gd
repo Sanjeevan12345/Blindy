@@ -2,7 +2,10 @@ extends Node3D
 ## Level 1. Server owns physics, objectives and checkpoint state.
 const PORT := 28760
 const ROLE_NAMES := ["HEAD", "HANDS / BODY", "WHEEL"]
-const Layout = preload("res://scripts/level_one_layout.gd")
+var Layout = preload("res://scripts/level_one_layout.gd")
+var level_number := 1
+var level_title := "ASSEMBLY REQUIRED"
+var level_choice: OptionButton
 var DOCKS: Array = Layout.docks()
 var OBJECTIVES: Array = Layout.ENCOUNTERS.map(func(e): return e.objective) + ["A little further…"]
 var ACTIONS: Array = Layout.ENCOUNTERS.map(func(e): return e.action)
@@ -75,6 +78,10 @@ func authority() -> bool:
 	return solo or multiplayer.is_server()
 
 func _ready() -> void:
+	for number in [2,3]:
+		if ("--level=%d" % number) in OS.get_cmdline_user_args() and level_number!=number:
+			get_tree().call_deferred("change_scene_to_file",scene_for_level(number))
+			return
 	build_world()
 	build_ui()
 	build_audio()
@@ -83,7 +90,19 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(func(): lobby_text.text = "Connected. Waiting for role assignment…")
 	multiplayer.connection_failed.connect(connection_failed)
 	multiplayer.server_disconnected.connect(server_lost)
+	if Campaign.continuing:
+		solo=Campaign.solo
+		roles=Campaign.roles.duplicate()
+		role=Campaign.local_role
+		lobby_text.text="Loading Level %d. Waiting for all controllers…" % level_number
+		Campaign.call_deferred("mark_loaded")
+		return
+	if Campaign.launch_solo:
+		Campaign.launch_solo=false
+		start_solo()
+		return
 	var args := OS.get_cmdline_user_args()
+	if "--resume" in args: Campaign.resume_three=true
 	for arg in args:
 		if arg.begins_with("--port="):
 			server_port = int(arg.get_slice("=",1))
@@ -128,10 +147,11 @@ func block(at: Vector3, size: Vector3, color: String, solid: bool = true, parent
 		node.add_child(collision)
 	return node
 
-func sign_at(text: String, at: Vector3, color: String = "efbf75") -> void:
+func sign_at(text: String, at: Vector3, color: String = "efbf75", facing: float=0) -> void:
 	var label := Label3D.new()
 	label.text = text
 	label.position = at
+	label.rotation.y=facing
 	label.font_size = 48
 	label.pixel_size = 0.007
 	label.double_sided = false
@@ -142,7 +162,7 @@ func sign_at(text: String, at: Vector3, color: String = "efbf75") -> void:
 		longest = maxi(longest,line.length())
 	var width := clampf(longest*0.18,2.5,10.5)
 	var height := text.split("\n").size()*0.43+0.24
-	block(at+Vector3(0,0,0.06),Vector3(width,height,0.10),"253b46",false)
+	block(at+Basis(Vector3.UP,facing)*Vector3(0,0,-0.06),Vector3(width,height,0.10),"253b46",false).rotation.y=facing
 
 func build_world() -> void:
 	world = Node3D.new()
@@ -223,6 +243,7 @@ func build_world() -> void:
 		if Layout.ENCOUNTERS[i].id != "pickup":
 			block(dock+Vector3(1.55,0.7,0),Vector3(0.4,1.4,0.4),"4d6971")
 			block(dock+Vector3(1.55,1.45,0),Vector3(0.55,0.2,0.5),"68d8df",false)
+	preload("res://scripts/cinematic_kit.gd").new().install(self)
 	robot=preload("res://scripts/robot.gd").new()
 	robot.name="SharedRobot"
 	add_child(robot)
@@ -318,17 +339,29 @@ func build_ui() -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation",12)
 	lobby.add_child(box)
-	text_label(box,"BLINDY / ASSEMBLY REQUIRED",28)
+	text_label(box,"BLINDY / "+level_title,28)
 	lobby_text = text_label(box,"Three players. One robot. Rescue the last sapling.\nHost: HEAD · second player: HANDS · third: WHEEL",18)
 	address = LineEdit.new()
 	address.text = "127.0.0.1"
 	address.placeholder_text = "Host IP address"
 	box.add_child(address)
+	level_choice=OptionButton.new()
+	level_choice.add_item("Level 1 — Assembly Required")
+	level_choice.add_item("Level 2 — Handle With Care")
+	level_choice.add_item("Level 3 — Waterworks")
+	level_choice.select(level_number-1)
+	box.add_child(level_choice)
 	button(box,"Host three-player session",host_game)
 	button(box,"Join session",join_game)
 	start_button = button(box,"Start / resume with three players",start_network)
 	start_button.disabled = true
 	button(box,"Solo test — all controls on one keyboard",start_solo)
+	if level_number==1:
+		button(box,"Solo test — Level 2",solo_level_two)
+		button(box,"Solo test — Level 3",func(): solo_level(3))
+	button(box,"New Level 3 — replaces saved run",func(): Campaign.resume_three=false; level_choice.select(2); lobby_text.text="New Level 3 selected. Choose Solo or Host.")
+	if not preload("res://scripts/waterworks_save.gd").read_slot().is_empty():
+		button(box,"Resume saved Level 3",func(): Campaign.resume_three=true; level_choice.select(2); lobby_text.text="Saved Level 3 selected. Choose Solo or Host.")
 	text_label(box,"Direct IP / LAN · UDP %d · use external voice chat\nSolo: W/S throttle · A/D steer · mouse look · Space jump · E interact" % server_port,16)
 
 func draw_schematic() -> void:
@@ -434,6 +467,9 @@ func pause_session() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func server_lost() -> void:
+	if completed:
+		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+		return
 	pause_session()
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	lobby_text.text = "Host disconnected. Restart the game to create or join a new session."
@@ -444,10 +480,42 @@ func connection_failed() -> void:
 
 func start_network() -> void:
 	if multiplayer.is_server() and roles.size() == 3:
-		begin_session.rpc()
+		if level_choice.selected+1!=level_number:
+			enter_level.rpc(level_choice.selected+1)
+		else:
+			begin_session.rpc()
+
+func scene_for_level(number: int) -> String:
+	return {1:"res://scenes/main.tscn",2:"res://scenes/level_two.tscn",3:"res://scenes/level_three.tscn"}[number]
+
+func solo_level_two() -> void: solo_level(2)
+
+func solo_level(number: int) -> void:
+	if multiplayer.multiplayer_peer is ENetMultiplayerPeer: return
+	Campaign.launch_solo=true
+	get_tree().change_scene_to_file(scene_for_level(number))
+
+@rpc("authority","call_local","reliable")
+func enter_level_two() -> void: enter_level(2)
+
+@rpc("authority","call_local","reliable")
+func enter_level(number: int) -> void:
+	if number not in [1,2,3]: return
+	Campaign.continuing=true
+	Campaign.solo=solo
+	Campaign.roles=roles.duplicate()
+	Campaign.local_role=role
+	Campaign.loaded.clear()
+	running=false
+	robot.set_simulation(false)
+	Input.mouse_mode=Input.MOUSE_MODE_VISIBLE
+	get_tree().call_deferred("change_scene_to_file",scene_for_level(number))
 
 func start_solo() -> void:
 	if (multiplayer.multiplayer_peer is ENetMultiplayerPeer):
+		return
+	if level_choice.selected+1!=level_number:
+		solo_level(level_choice.selected+1)
 		return
 	solo = true
 	role = 0
@@ -493,7 +561,14 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.physical_keycode == KEY_ESCAPE:
+		if event.physical_keycode == KEY_N and completed and level_number<3 and authority():
+			if solo:
+				Campaign.resume_three=false
+				enter_level(level_number+1)
+			else:
+				Campaign.resume_three=false
+				enter_level.rpc(level_number+1)
+		elif event.physical_keycode == KEY_ESCAPE:
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		elif event.physical_keycode == KEY_SPACE and (solo or role == 1):
 			jump_sequence += 1
@@ -553,7 +628,7 @@ func dock_distance() -> float:
 
 func interaction_hint() -> String:
 	if completed:
-		return "LEVEL COMPLETE — ASSEMBLY REQUIRED\nThe sapling is safe. Level 2: Handle With Care (coming next)."
+		return "LEVEL COMPLETE — ASSEMBLY REQUIRED\nThe sapling is safe. Host: press N to continue to Level 2 — Handle With Care."
 	if stage == Layout.COMPLETE:
 		return "Lift ascending…"
 	if stage == 0 and not looked:
@@ -679,6 +754,7 @@ func _physics_process(delta: float) -> void:
 		if input_age[1] > 0.5:
 			interact_held = false
 			robot.brace = false
+			robot.balance_input = 0
 		update_level(delta)
 		bump_cooldown -= delta
 		if robot.get_slide_collision_count()>0 and robot.drive_input.length()>0.1 and Vector2(robot.velocity.x,robot.velocity.z).length()<0.3 and bump_cooldown<=0:
@@ -738,10 +814,12 @@ func confirm_completion(final_position: Vector3, final_orientation: Quaternion) 
 	announcement="Three minds. One small life. A little further."
 
 func make_snapshot() -> Dictionary:
-	return {"position":robot.position,"velocity":robot.velocity,"orientation":robot.quaternion,"angular_velocity":robot.angular_velocity,"recovering":robot.recovering,"recovery_time":robot.recovery_time,"checkpoint_heading":checkpoint_heading,"visual_offset":robot.visual.position,"visual_rotation":robot.visual.rotation,"stage":stage,"cargo":cargo,"yaw":yaw,"pitch":pitch,"looked":looked,"drove":drove,"grounded":robot.is_on_floor(),"hold":hold_progress,"lift":lift_time,"complete":completed,"announcement":announcement,"announcement_time":announcement_time,"proximity":near_obstacle,"checkpoint":checkpoint,"checkpoint_stage":checkpoint_stage,"checkpoint_cargo":checkpoint_cargo,"bridge_time":bridge_time}
+	return {"level":level_number,"position":robot.position,"velocity":robot.velocity,"orientation":robot.quaternion,"angular_velocity":robot.angular_velocity,"recovering":robot.recovering,"recovery_time":robot.recovery_time,"checkpoint_heading":checkpoint_heading,"visual_offset":robot.visual.position,"visual_rotation":robot.visual.rotation,"stage":stage,"cargo":cargo,"yaw":yaw,"pitch":pitch,"looked":looked,"drove":drove,"grounded":robot.is_on_floor(),"hold":hold_progress,"lift":lift_time,"complete":completed,"announcement":announcement,"announcement_time":announcement_time,"proximity":near_obstacle,"checkpoint":checkpoint,"checkpoint_stage":checkpoint_stage,"checkpoint_cargo":checkpoint_cargo,"bridge_time":bridge_time}
 
 @rpc("authority","call_remote","unreliable_ordered",2)
 func receive_state(state: Dictionary) -> void:
+	if int(state.get("level",1))!=level_number:
+		return
 	if state.stage != stage:
 		play_tone()
 	if state.cargo and not cargo:
@@ -801,8 +879,11 @@ func apply_presentation(delta: float) -> void:
 		lift.position.y = 0.4+smoothstep(0,1,clampf((lift_time-1)/5,0,1))*7
 		lift_gate.visible = true
 		lift_gate.process_mode = Node.PROCESS_MODE_INHERIT
+	update_view(delta)
+
+func update_view(delta: float) -> void:
 	var role_text: String = "SOLO TEST / ALL CONTROLS" if solo else ROLE_NAMES[role]
-	title.text = "ASSEMBLY REQUIRED / " + role_text
+	title.text = level_title+" / " + role_text
 	objective.text = OBJECTIVES[stage]
 	var grounded: bool = robot.is_on_floor() if authority() else remote_grounded
 	if solo or role == 0:
@@ -866,4 +947,3 @@ func _exit_tree() -> void:
 		if is_instance_valid(player):
 			player.stop()
 			player.stream = null
-

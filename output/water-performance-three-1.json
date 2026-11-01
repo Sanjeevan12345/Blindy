@@ -1,0 +1,62 @@
+[
+  {
+    "explicit_draws_per_frame": 1,
+    "frames": 298,
+    "mean_frame_ms": 7.36646308724832,
+    "median_frame_ms": 7.589,
+    "median_gpu_ms": 4.83500003814697,
+    "mode": "three_clients",
+    "p95_frame_ms": 8.605,
+    "quality": "Maximum",
+    "resolution": "1920x1080",
+    "role": 1,
+    "view": "hub",
+    "vsync": false,
+    "water_visible": false
+  },
+  {
+    "explicit_draws_per_frame": 1,
+    "frames": 314,
+    "mean_frame_ms": 6.99037579617834,
+    "median_frame_ms": 7.068,
+    "median_gpu_ms": 4.45900011062622,
+    "mode": "three_clients",
+    "p95_frame_ms": 8.39,
+    "quality": "Maximum",
+    "resolution": "1920x1080",
+    "role": 1,
+    "view": "lock",
+    "vsync": false,
+    "water_visible": false
+  },
+  {
+    "explicit_draws_per_frame": 1,
+    "frames": 450,
+    "mean_frame_ms": 4.89535555555556,
+    "median_frame_ms": 5.055,
+    "median_gpu_ms": 2.9779999256134,
+    "mode": "three_clients",
+    "p95_frame_ms": 5.632,
+    "quality": "Reduced",
+    "resolution": "1920x1080",
+    "role": 1,
+    "view": "hub",
+    "vsync": false,
+    "water_visible": false
+  },
+  {
+    "explicit_draws_per_frame": 1,
+    "frames": 430,
+    "mean_frame_ms": 5.12606279069768,
+    "median_frame_ms": 5.012,
+    "median_gpu_ms": 2.96399998664856,
+    "mode": "three_clients",
+    "p95_frame_ms": 5.902,
+    "quality": "Reduced",
+    "resolution": "1920x1080",
+    "role": 1,
+    "view": "lock",
+    "vsync": false,
+    "water_visible": false
+  }
+]
